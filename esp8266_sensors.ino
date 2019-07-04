@@ -32,7 +32,6 @@ Influxdb influx(INFLUXDB_HOST);
 void connectWifi() {
   // attempt to connect to Wifi network:
   WiFi.mode(WIFI_STA);
-  //while (true) {
   Serial.print("Connecting to ");
   Serial.println(ssid);
 
@@ -71,8 +70,8 @@ void configureSensor(void)
 
 int influxDbUpdate() {
   //*********** Temp hum bar ******************************
-  uint8_t humidity = dht.readHumidity();
-  uint16_t pressure = bmp.readPressure() / 100.0;
+  float humidity = dht.readHumidity();
+  float pressure = bmp.readPressure() / 100.0;
   float temperature = dht.readTemperature();
 
   if (isnan(humidity) || isnan(temperature) || isnan(pressure)) {
