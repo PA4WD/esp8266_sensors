@@ -72,11 +72,17 @@ int influxDbUpdate() {
   //*********** Temp hum bar ******************************
   float humidity = dht.readHumidity();
   float pressure = bmp.readPressure() / 100.0;
+  float bmpTemperature = bmp.readTemperature();
   float temperature = dht.readTemperature();
 
-  if (isnan(humidity) || isnan(temperature) || isnan(pressure)) {
+  if (isnan(humidity) || isnan(temperature) || isnan(pressure) || isnan(bmpTemperature)) {
     return -1;
   }
+
+  InfluxData bmptempRow("temperature_BMP085");
+  bmptempRow.addTag("device", chipid);
+  bmptempRow.addValue("value", bmpTemperature);
+  influx.prepare(bmptempRow);
 
   InfluxData tempRow("temperature");
   tempRow.addTag("device", chipid);
