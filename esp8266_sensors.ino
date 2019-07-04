@@ -40,6 +40,7 @@ void connectWifi() {
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
+    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
   }
 
   Serial.println("");
@@ -137,6 +138,7 @@ void pushTimerTick()
 //************ Start van het programma *************
 void setup() {
   Serial.begin(115200);
+  pinMode(LED_BUILTIN, OUTPUT);
   Serial.println();
   connectWifi();
   Serial.println();
@@ -181,12 +183,14 @@ void setup() {
 void loop() {
   if (WiFi.status() == WL_CONNECTED) {
     if (timerFlag == 1) {
+      digitalWrite(LED_BUILTIN, LOW);
       if ((influxDbUpdate() != 0)) {
         //error in server request
         delay(4000); //try after 4 sec
       }
       else {
         timerFlag = 0;
+        digitalWrite(LED_BUILTIN, HIGH);
       }
     }
   }
