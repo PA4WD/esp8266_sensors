@@ -11,7 +11,7 @@
 #define DHTPIN D1    // what digital pin we're connected to = D1
 #define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
 
-#define DEBUG
+//#define DEBUG
 
 DHT dht(DHTPIN, DHTTYPE);
 Ticker pushTimer;
@@ -47,6 +47,7 @@ void connectWifi() {
   Serial.println("WiFi connected");
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
+  digitalWrite(LED_BUILTIN, HIGH);
 }
 
 void configureSensor(void)
@@ -186,7 +187,7 @@ void loop() {
       digitalWrite(LED_BUILTIN, LOW);
       if ((influxDbUpdate() != 0)) {
         //error in server request
-        delay(4000); //try after 4 sec
+        delay(1000); //try after 1 sec
       }
       else {
         timerFlag = 0;
