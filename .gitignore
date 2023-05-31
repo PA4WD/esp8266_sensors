@@ -1,2 +1,4 @@
 .vscode
 /credentials.h
+/src/credentials.h
+/.pio

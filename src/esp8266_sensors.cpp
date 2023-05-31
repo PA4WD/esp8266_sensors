@@ -1,15 +1,15 @@
 #include <ESP8266WiFi.h>
 #include <Ticker.h>
 #include "DHT.h"
-#include <Wire.h>
+//#include <Wire.h>
 #include <Adafruit_BMP085.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_TSL2561_U.h>
-#include <InfluxDb.h>
+#include <InfluxDb.h>  //https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino
 #include "credentials.h"
 
-#define DHTPIN D1    // what digital pin we're connected to = D1
-#define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
+#define DHTPIN D1      // what digital pin we're connected to = D1
+#define DHTTYPE DHT22  // DHT 22  (AM2302), AM2321
 
 //#define DEBUG
 
@@ -26,7 +26,6 @@ int timerFlag = 0;
 const char ssid[] = WIFI_SSID;
 const char password[] = WIFI_PASSWD;
 String chipid;
-Influxdb influx(INFLUXDB_HOST);
 
 // connect to wifi network
 void connectWifi() {
@@ -40,32 +39,31 @@ void connectWifi() {
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
-    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
   }
 
   Serial.println("");
   Serial.println("WiFi connected");
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
-  digitalWrite(LED_BUILTIN, HIGH);
 }
 
-void configureSensor(void)
-{
+void configureSensor(void) {
   /* You can also manually set the gain or enable auto-gain support */
   //tsl.setGain(TSL2561_GAIN_1X);      /* No gain ... use in bright light to avoid sensor saturation */
   //tsl.setGain(TSL2561_GAIN_16X);     /* 16x gain ... use in low light to boost sensitivity */
-  tsl.enableAutoRange(true);            /* Auto-gain ... switches automatically between 1x and 16x */
+  tsl.enableAutoRange(true); /* Auto-gain ... switches automatically between 1x and 16x */
 
   /* Changing the integration time gives you better sensor resolution (402ms = 16-bit data) */
   //tsl.setIntegrationTime(TSL2561_INTEGRATIONTIME_13MS);      /* fast but low resolution */
   //tsl.setIntegrationTime(TSL2561_INTEGRATIONTIME_101MS);  /* medium resolution and speed   */
-  tsl.setIntegrationTime(TSL2561_INTEGRATIONTIME_402MS);  /* 16-bit data but slowest conversions */
+  tsl.setIntegrationTime(TSL2561_INTEGRATIONTIME_402MS); /* 16-bit data but slowest conversions */
 
   /* Update these values depending on what you've set above! */
   Serial.println("------------------------------------");
-  Serial.print  ("Gain:         "); Serial.println("Auto");
-  Serial.print  ("Timing:       "); Serial.println("402 ms");
+  Serial.print("Gain:         ");
+  Serial.println("Auto");
+  Serial.print("Timing:       ");
+  Serial.println("402 ms");
   Serial.println("------------------------------------");
 }
 
@@ -73,73 +71,94 @@ void configureSensor(void)
 int influxDbUpdate() {
   //*********** Temp hum bar ******************************
   float humidity = dht.readHumidity();
-  float pressure = bmp.readPressure() / 100.0;
-  float bmpTemperature = bmp.readTemperature();
   float temperature = dht.readTemperature();
+  float pressure = bmp.readPressure() / 100.0;
+  float temperature_BMP = bmp.readTemperature();
 
-  if (isnan(humidity) || isnan(temperature) || isnan(pressure) || isnan(bmpTemperature)) {
+
+  if (isnan(humidity) || isnan(temperature) || isnan(pressure)) {
     return -1;
   }
 
-  InfluxData bmptempRow("temperature_BMP085");
-  bmptempRow.addTag("device", chipid);
-  bmptempRow.addValue("value", bmpTemperature);
-  influx.prepare(bmptempRow);
+#ifdef DEBUG
+    Serial.println("=============");
+    Serial.print(humidity);
+    Serial.println(" %");
+    Serial.print(temperature);
+    Serial.println(" C");
+    Serial.print(pressure);
+    Serial.println(" Hpa");
+#endif
 
-  InfluxData tempRow("temperature");
-  tempRow.addTag("device", chipid);
-  tempRow.addValue("value", temperature);
-  influx.prepare(tempRow);
+  InfluxDBClient client(INFLUXDB_HOST, INFLUXDB_DATABASE);
 
-  InfluxData humRow("humidity");
-  humRow.addTag("device", chipid);
-  humRow.addValue("value", humidity);
-  influx.prepare(humRow);
+  Point pointTemperature("temperature");
+  pointTemperature.addTag("device", chipid);
+  pointTemperature.addField("value", temperature);
+  if (client.writePoint(pointTemperature) == false) {
+    Serial.println("Influx Temperature write error");
+    return -1;
+  }
 
-  InfluxData pressRow("pressure");
-  pressRow.addTag("device", chipid);
-  pressRow.addValue("value", pressure);
-  influx.prepare(pressRow);
+  Point pointHumidity("humidity");
+  pointHumidity.addTag("device", chipid);
+  pointHumidity.addField("value", humidity);
+  if (client.writePoint(pointHumidity) == false) {
+    Serial.println("Influx Humidity write error");
+    return -1;
+  }
+
+  Point pointPressure("pressure");
+  pointPressure.addTag("device", chipid);
+  pointPressure.addField("value", pressure);
+  if (client.writePoint(pointPressure) == false) {
+    Serial.println("Influx Pressure write error");
+    return -1;
+  }
+
+  Point pointTemperatureBMP("temperature_BMP085");
+  pointTemperatureBMP.addTag("device", chipid);
+  pointTemperatureBMP.addField("value", temperature_BMP);
+  if (client.writePoint(pointTemperatureBMP) == false) {
+    Serial.println("Influx Temperature BMP085 write error");
+    return -1;
+  }
 
   //*********** Light sensor ******************************
-  /* Get a new sensor event */
   sensors_event_t event;
   tsl.getEvent(&event);
+  Point pointLight("light");
+  pointLight.addTag("device", chipid);
 
-  InfluxData luxRow("light");
-  luxRow.addTag("device", chipid);
   if (event.light) {
 #ifdef DEBUG
     Serial.print(event.light);
     Serial.println(" lux");
 #endif
-    luxRow.addValue("value", event.light);
-  }
-  else {
+    pointLight.addField("value", event.light);
+  } else {
 #ifdef DEBUG
     Serial.println("Sensor overload");
 #endif
-    luxRow.addValue("value", 0);
+    pointLight.addField("value", 0);
   }
-  influx.prepare(luxRow);
 
-  bool ret = influx.write();
-  if(ret == false){
+  if (client.writePoint(pointLight) == false) {
+    Serial.println("Influx Light write error");
     return -1;
   }
+
   return 0;
 }
 
 // ********* timer tick callback ******************
-void pushTimerTick()
-{
+void pushTimerTick() {
   timerFlag = 1;
 }
 
 //************ Start van het programma *************
 void setup() {
   Serial.begin(115200);
-  pinMode(LED_BUILTIN, OUTPUT);
   Serial.println();
   connectWifi();
   Serial.println();
@@ -160,11 +179,11 @@ void setup() {
   Serial.println("BMP085 sensor, OK");
 
   /* Initialise the sensor */
-  if (!tsl.begin())
-  {
+  if (!tsl.begin()) {
     /* There was a problem detecting the TSL2561 ... check your connections */
     Serial.print("Ooops, no TSL2561 detected ... Check your wiring or I2C ADDR!");
-    while (1);
+    while (1)
+      ;
   }
   /* Setup the sensor gain and integration time */
   configureSensor();
@@ -173,29 +192,22 @@ void setup() {
   Serial.print("chipid = ");
   Serial.println(chipid);
 
-  influx.setDb(INFLUXDB_DATABASE);
-  //influx.setDbAuth(INFLUXDB_DATABASE, INFLUXDB_USER, INFLUXDB_PASS);
-
-  //Set de domoticz update timer
+  //Set update timer
   pushTimer.attach(INTERVALTIME, pushTimerTick);
-  timerFlag = 1; // stuur meteen de eerste update
+  timerFlag = 1;  // stuur meteen de eerste update
 }
 
 void loop() {
   if (WiFi.status() == WL_CONNECTED) {
     if (timerFlag == 1) {
-      digitalWrite(LED_BUILTIN, LOW);
       if ((influxDbUpdate() != 0)) {
         //error in server request
-        delay(1000); //try after 1 sec
-      }
-      else {
+        delay(4000);  //try after 4 sec
+      } else {
         timerFlag = 0;
-        digitalWrite(LED_BUILTIN, HIGH);
       }
     }
-  }
-  else {
+  } else {
     connectWifi();
   }
 }
