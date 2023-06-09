@@ -43,7 +43,7 @@ void connectWifi() {
 
   Serial.println("");
   Serial.println("WiFi connected");
-  Serial.println("IP address: ");
+  Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 }
 
@@ -135,12 +135,12 @@ int influxDbUpdate() {
     Serial.print(event.light);
     Serial.println(" lux");
 #endif
-    pointLight.addField("value", event.light);
+    pointLight.addField("value", (int)event.light);
   } else {
 #ifdef DEBUG
     Serial.println("Sensor overload");
 #endif
-    pointLight.addField("value", 0);
+    pointLight.addField("value", (int)0);
   }
 
   if (client.writePoint(pointLight) == false) {
