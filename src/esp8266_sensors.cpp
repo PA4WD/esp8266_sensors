@@ -11,7 +11,7 @@
 #define DHTPIN D1      // what digital pin we're connected to = D1
 #define DHTTYPE DHT22  // DHT 22  (AM2302), AM2321
 
-//#define DEBUG
+#define DEBUG
 
 DHT dht(DHTPIN, DHTTYPE);
 Ticker pushTimer;
@@ -135,12 +135,12 @@ int influxDbUpdate() {
     Serial.print(event.light);
     Serial.println(" lux");
 #endif
-    pointLight.addField("value", (int)event.light);
+    pointLight.addField("value", event.light);
   } else {
 #ifdef DEBUG
     Serial.println("Sensor overload");
 #endif
-    pointLight.addField("value", (int)0);
+    pointLight.addField("value", 0.0f);
   }
 
   if (client.writePoint(pointLight) == false) {
